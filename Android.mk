@@ -9,6 +9,7 @@ LOCAL_JAVA_LIBRARIES := ext
 
 LOCAL_PACKAGE_NAME := UserDictionaryProvider
 LOCAL_CERTIFICATE := shared
+LOCAL_PRIVILEGED_MODULE := true
 
 LOCAL_PROGUARD_FLAG_FILES := proguard.flags
 
