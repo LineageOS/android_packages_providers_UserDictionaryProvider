@@ -124,6 +124,11 @@ public class UserDictionaryProvider extends ContentProvider {
     @Override
     public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs,
             String sortOrder) {
+        // Only the enabled IMEs and spell checkers can access this provider.
+        if (!canCallerAccessUserDictionary()) {
+            return getEmptyCursorOrThrow(projection);
+        }
+
         SQLiteQueryBuilder qb = new SQLiteQueryBuilder();
 
         switch (sUriMatcher.match(uri)) {
@@ -219,6 +224,11 @@ public class UserDictionaryProvider extends ContentProvider {
 
     @Override
     public int delete(Uri uri, String where, String[] whereArgs) {
+        // Only the enabled IMEs and spell checkers can access this provider.
+        if (!canCallerAccessUserDictionary()) {
+            return 0;
+        }
+
         SQLiteDatabase db = mOpenHelper.getWritableDatabase();
         int count;
         switch (sUriMatcher.match(uri)) {
@@ -243,6 +253,11 @@ public class UserDictionaryProvider extends ContentProvider {
 
     @Override
     public int update(Uri uri, ContentValues values, String where, String[] whereArgs) {
+        // Only the enabled IMEs and spell checkers can access this provider.
+        if (!canCallerAccessUserDictionary()) {
+            return 0;
+        }
+
         SQLiteDatabase db = mOpenHelper.getWritableDatabase();
         int count;
         switch (sUriMatcher.match(uri)) {
@@ -263,6 +278,37 @@ public class UserDictionaryProvider extends ContentProvider {
         getContext().getContentResolver().notifyChange(uri, null);
         mBackupManager.dataChanged();
         return count;
+    }
+
+    private boolean canCallerAccessUserDictionary() {
+        final int callingUid = Binder.getCallingUid();
+        if (UserHandle.getAppId(callingUid) == Process.SYSTEM_UID
+                || callingUid == Process.ROOT_UID
+                || callingUid == Process.myUid()) {
+            return true;
+        }
+        String callingPackage = getCallingPackage();
+        List<InputMethodInfo> imeInfos = mImeManager.getEnabledInputMethodList();
+        if (imeInfos != null) {
+            final int imeInfoCount = imeInfos.size();
+            for (int i = 0; i < imeInfoCount; i++) {
+                InputMethodInfo imeInfo = imeInfos.get(i);
+                if (imeInfo.getServiceInfo().applicationInfo.uid == callingUid
+                        && imeInfo.getPackageName().equals(callingPackage)) {
+                    return true;
+                }
+            }
+        }
+        SpellCheckerInfo[] scInfos = mTextServiceManager.getEnabledSpellCheckers();
+        if (scInfos != null) {
+            for (SpellCheckerInfo scInfo : scInfos) {
+                if (scInfo.getServiceInfo().applicationInfo.uid == callingUid
+                        && scInfo.getPackageName().equals(callingPackage)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     static {
